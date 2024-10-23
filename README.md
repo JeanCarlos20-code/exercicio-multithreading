@@ -1,1 +1,2 @@
-Para inicializar o programa basta digitar go run main.go
+- Para inicializar o programa basta digitar go run main.go
+- Caso queira achar um cep em específico basta digitar go run main.go :cep

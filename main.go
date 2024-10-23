@@ -28,26 +28,50 @@ type BrasilCEP struct {
 func main() {
 	ctx, cancel := context.WithTimeout(context.TODO(), 1*time.Second)
 	defer cancel()
-	channelViaCepApi, channelCEPBrasilApi := make(chan map[string]string), make(chan map[string]string)
-	for _, cep := range os.Args[1:] {
-		go func() {
-			channelViaCepApi <- ViaCEPApiHandler(ctx, cep)
-		}()
 
-		go func() {
+	callAPIs := func(cep string) (map[string]string, map[string]string) {
+		channelViaCepApi := make(chan map[string]string)
+		channelCEPBrasilApi := make(chan map[string]string)
+		defer close(channelViaCepApi)
+		defer close(channelCEPBrasilApi)
+
+		go func(cep string) {
+			channelViaCepApi <- ViaCEPApiHandler(ctx, cep)
+		}(cep)
+
+		go func(cep string) {
 			channelCEPBrasilApi <- CEPBrasilApiHandler(ctx, cep)
-		}()
+		}(cep)
+
+		select {
+		case messageChannelViaCepApi := <-channelViaCepApi:
+			return messageChannelViaCepApi, nil
+		case messageChannelCEPBrasilApi := <-channelCEPBrasilApi:
+			return nil, messageChannelCEPBrasilApi
+		case <-ctx.Done():
+			fmt.Println("Timeout reached:", ctx.Err())
+			return nil, nil
+		}
 	}
 
-	select {
-	case messageChannelViaCepApi := <-channelViaCepApi:
-		fmt.Println(messageChannelViaCepApi)
-
-	case messageChannelCEPBrasilApi := <-channelCEPBrasilApi:
-		fmt.Println(messageChannelCEPBrasilApi)
-
-	case <-ctx.Done():
-		fmt.Println("Timeout reached")
+	if len(os.Args) > 1 {
+		for _, cep := range os.Args[1:] {
+			viaCepData, cepBrasilData := callAPIs(cep)
+			if viaCepData != nil {
+				fmt.Println("ViaCEP:", viaCepData)
+			}
+			if cepBrasilData != nil {
+				fmt.Println("CEPBrasil:", cepBrasilData)
+			}
+		}
+	} else {
+		viaCepData, cepBrasilData := callAPIs("01153000")
+		if viaCepData != nil {
+			fmt.Println("ViaCEP (default):", viaCepData)
+		}
+		if cepBrasilData != nil {
+			fmt.Println("CEPBrasil (default):", cepBrasilData)
+		}
 	}
 }
 
@@ -77,8 +101,6 @@ func CEPBrasilApiHandler(ctx context.Context, cep string) map[string]string {
 		panic(err)
 	}
 
-	fmt.Println("CEPBrasilApiHandler")
-
 	return map[string]string{
 		"Cep":        data.Cep,
 		"Estado":     data.State,
@@ -98,8 +120,6 @@ func ViaCEPApiHandler(ctx context.Context, cep string) map[string]string {
 	if err != nil {
 		panic(err)
 	}
-
-	fmt.Println("ViaCEPApiHandler")
 
 	return map[string]string{
 		"Cep":        data.Cep,
