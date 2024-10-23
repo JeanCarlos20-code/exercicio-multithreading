@@ -30,8 +30,7 @@ func main() {
 	defer cancel()
 
 	callAPIs := func(cep string) (map[string]string, map[string]string) {
-		channelViaCepApi := make(chan map[string]string)
-		channelCEPBrasilApi := make(chan map[string]string)
+		channelViaCepApi, channelCEPBrasilApi := make(chan map[string]string), make(chan map[string]string)
 		defer close(channelViaCepApi)
 		defer close(channelCEPBrasilApi)
 
